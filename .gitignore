@@ -1,0 +1,35 @@
+# Environment variables
+.env
+*.env
+
+# Node modules
+node_modules/
+backend/node_modules/
+
+# Flutter
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/build/
+mobile/.dart_tool/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Docker
+*.pid
+backend/src/config/firebase-admin-key.json
+**/*-key.json
+**/*.key
+backend/src/config/firebase-admin-key.json
+**/*-key.json
+.env
