@@ -11,6 +11,8 @@ const { initializeFirebase } = require('./config/firebase');
 // Import routes
 const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
+const kycRoutes = require('./routes/kyc');
+const escrowRoutes = require('./routes/escrow');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,6 +30,8 @@ app.use(morgan('dev'));
 // Routes
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/kyc', kycRoutes);
+app.use('/api/escrow', escrowRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -41,6 +45,18 @@ app.get('/', (req, res) => {
         register: 'POST /api/auth/register',
         login: 'POST /api/auth/login',
         profile: 'GET /api/auth/profile',
+      },
+      kyc: {
+        submit: 'POST /api/kyc/submit',
+        documents: 'GET /api/kyc/documents',
+      },
+      escrow: {
+        createTransaction: 'POST /api/escrow/transaction/create',
+        getTransaction: 'GET /api/escrow/transaction/:transactionId',
+        getTransactions: 'GET /api/escrow/transactions',
+        confirmDelivery: 'POST /api/escrow/transaction/:transactionId/confirm-delivery',
+        rejectDelivery: 'POST /api/escrow/transaction/:transactionId/reject-delivery',
+        updateStatus: 'PUT /api/escrow/transaction/:transactionId/status',
       },
     },
   });
