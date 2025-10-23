@@ -1,3 +1,6 @@
+// mobile/lib/providers/auth_provider.dart
+// ENHANCED VERSION WITH AUTOMATIC BALANCE REFRESH
+
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
@@ -6,11 +9,13 @@ import '../services/storage_service.dart';
 class AuthProvider with ChangeNotifier {
   UserModel? _user;
   bool _isLoading = false;
+  bool _isRefreshing = false; // NEW: Track if balance is being refreshed
   String? _errorMessage;
   bool _isAuthenticated = false;
 
   UserModel? get user => _user;
   bool get isLoading => _isLoading;
+  bool get isRefreshing => _isRefreshing; // NEW: Expose refresh state
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _isAuthenticated;
 
@@ -45,8 +50,13 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Refresh user data from server
-  Future<void> refreshUserData() async {
+  // ENHANCED: Refresh user data from server with better state management
+  Future<void> refreshUserData({bool silent = false}) async {
+    if (!silent) {
+      _isRefreshing = true;
+      notifyListeners();
+    }
+
     try {
       final freshUser = await AuthService.getProfile();
       if (freshUser != null) {
@@ -55,10 +65,16 @@ class AuthProvider with ChangeNotifier {
         await StorageService.saveUserData(
           '${_user!.toJson()}'.replaceAll('Instance of \'', '').replaceAll('\'', ''),
         );
-        notifyListeners();
+        debugPrint('✅ Balance refreshed: GH₵ ${freshUser.walletBalance}');
       }
     } catch (e) {
-      debugPrint('Failed to refresh user data: $e');
+      debugPrint('❌ Failed to refresh user data: $e');
+      _errorMessage = 'Failed to refresh balance';
+    } finally {
+      if (!silent) {
+        _isRefreshing = false;
+      }
+      notifyListeners();
     }
   }
 
@@ -153,9 +169,10 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Update wallet balance locally (optimistic update)
-  void updateWalletBalance(double newBalance) {
+  // ENHANCED: Update wallet balance with immediate server refresh
+  Future<void> updateWalletBalance(double newBalance) async {
     if (_user != null) {
+      // Optimistic update - update UI immediately
       _user = UserModel(
         id: _user!.id,
         phoneNumber: _user!.phoneNumber,
@@ -171,8 +188,15 @@ class AuthProvider with ChangeNotifier {
       );
       notifyListeners();
       
-      // Refresh from server in background
-      refreshUserData();
+      debugPrint('⚡ Optimistic balance update: GH₵ $newBalance');
+      
+      // Refresh from server to get accurate balance (silent refresh)
+      await refreshUserData(silent: true);
     }
+  }
+
+  // NEW: Force refresh (for pull-to-refresh gestures)
+  Future<void> forceRefresh() async {
+    await refreshUserData(silent: false);
   }
 }

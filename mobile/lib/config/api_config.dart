@@ -1,3 +1,6 @@
+// mobile/lib/config/api_config.dart
+// FIXED VERSION - Corrected syntax error
+
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiConfig {
@@ -9,7 +12,5 @@ class ApiConfig {
   static const String health = '/health';
   static const String login = '/auth/login';
   static const String register = '/auth/register';
-}
-
-  // Helper to refresh auth state after transactions
   static const String refreshProfile = '/auth/profile';
+}

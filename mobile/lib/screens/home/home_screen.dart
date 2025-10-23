@@ -1,3 +1,6 @@
+// mobile/lib/screens/home/home_screen.dart
+// ENHANCED VERSION WITH PULL-TO-REFRESH FOR BALANCE UPDATE
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
@@ -7,8 +10,41 @@ import '../kyc/kyc_submission_screen.dart';
 import '../escrow/create_transaction_screen.dart';
 import '../escrow/transaction_list_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Refresh balance when screen loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshBalance();
+    });
+  }
+
+  // NEW: Pull-to-refresh handler
+  Future<void> _refreshBalance() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    await authProvider.forceRefresh();
+  }
+
+  // NEW: Navigate to create transaction and refresh on return
+  Future<void> _navigateToCreateTransaction() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const CreateTransactionScreen()),
+    );
+    
+    // If transaction was created successfully, refresh balance
+    if (result == true && mounted) {
+      _refreshBalance();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,35 +55,73 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('SafePay Ghana'),
         actions: [
+          // NEW: Manual refresh button
+          IconButton(
+            icon: authProvider.isRefreshing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.refresh),
+            onPressed: authProvider.isRefreshing ? null : _refreshBalance,
+            tooltip: 'Refresh Balance',
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await authProvider.logout();
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const WelcomeScreen()),
-                (route) => false,
-              );
+              if (mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+                  (route) => false,
+                );
+              }
             },
+            tooltip: 'Logout',
           ),
         ],
       ),
+      // NEW: Wrap body with RefreshIndicator for pull-to-refresh
       body: user == null
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: () async {
-                await authProvider.checkAuthStatus();
-              },
+              onRefresh: _refreshBalance,
+              color: AppTheme.primaryColor,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Welcome Card
+                    // Welcome Section
+                    Text(
+                      'Welcome, ${user.fullName}!',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      user.userType.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppTheme.primaryColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ENHANCED: Wallet Balance Card with refresh indicator
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [AppTheme.primaryColor, Color(0xFF3B82F6)],
@@ -55,115 +129,94 @@ class HomeScreen extends StatelessWidget {
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Welcome back,',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.white70,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            user.fullName,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Icon(
-                                user.userType == 'buyer'
-                                    ? Icons.shopping_bag_outlined
-                                    : user.userType == 'seller'
-                                        ? Icons.store_outlined
-                                        : Icons.delivery_dining_outlined,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                user.userType.toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primaryColor.withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Wallet Balance
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppTheme.borderColor),
-                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Wallet Balance',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: AppTheme.textSecondary,
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Wallet Balance',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white70,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              // NEW: Show refresh indicator on balance card
+                              if (authProvider.isRefreshing)
+                                const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              else
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: const Row(
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle,
+                                        size: 14,
+                                        color: Colors.white,
+                                      ),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'Live',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 12),
                           Text(
                             'GH₵ ${user.walletBalance.toStringAsFixed(2)}',
                             style: const TextStyle(
-                              fontSize: 32,
+                              fontSize: 40,
                               fontWeight: FontWeight.bold,
-                              color: AppTheme.textPrimary,
+                              color: Colors.white,
+                              height: 1.2,
                             ),
                           ),
                           const SizedBox(height: 16),
                           Row(
                             children: [
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Top up feature coming soon!'),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.add, size: 20),
-                                  label: const Text('Top Up'),
-                                  style: ElevatedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                  ),
-                                ),
+                              const Icon(
+                                Icons.info_outline,
+                                size: 16,
+                                color: Colors.white70,
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 8),
                               Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Send feature coming soon!'),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.send, size: 20),
-                                  label: const Text('Send'),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                child: Text(
+                                  'Pull down to refresh balance',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.white.withOpacity(0.8),
                                   ),
                                 ),
                               ),
@@ -173,53 +226,131 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    
+
+                    // KYC Status
+                    if (user.kycStatus != 'approved') ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.warningColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppTheme.warningColor.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.warning_amber_rounded,
+                              color: AppTheme.warningColor,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'KYC Verification Required',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Complete KYC to unlock all features',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const KYCSubmissionScreen(),
+                                  ),
+                                );
+                              },
+                              child: const Text('Complete'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
                     // Quick Actions
                     const Text(
                       'Quick Actions',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: AppTheme.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
-                    // Action Cards Grid
+
+                    // Action Buttons Grid
                     GridView.count(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       crossAxisCount: 2,
                       crossAxisSpacing: 16,
                       mainAxisSpacing: 16,
-                      childAspectRatio: 1.2,
-                      children: _buildActionCards(context, user.userType, user.kycStatus),
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Account Info
-                    _buildInfoCard(
-                      title: 'Account Information',
+                      childAspectRatio: 1.3,
                       children: [
-                        _buildInfoRow('Phone Number', user.phoneNumber),
-                        if (user.email != null)
-                          _buildInfoRow('Email', user.email!),
-                        _buildInfoRow('Account Type', user.userType.toUpperCase()),
-                        _buildInfoRow(
-                          'KYC Status',
-                          user.kycStatus.toUpperCase(),
-                          valueColor: user.kycStatus == 'approved'
-                              ? AppTheme.secondaryColor
-                              : user.kycStatus == 'pending'
-                                  ? AppTheme.warningColor
-                                  : AppTheme.errorColor,
+                        _buildActionCard(
+                          icon: Icons.add_card,
+                          title: 'New Transaction',
+                          color: AppTheme.primaryColor,
+                          onTap: _navigateToCreateTransaction, // UPDATED: Use new navigation method
                         ),
-                        _buildInfoRow(
-                          'Verification Status',
-                          user.isVerified ? 'VERIFIED' : 'NOT VERIFIED',
-                          valueColor: user.isVerified
+                        _buildActionCard(
+                          icon: Icons.receipt_long,
+                          title: 'Transactions',
+                          color: AppTheme.secondaryColor,
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const TransactionListScreen(),
+                              ),
+                            );
+                            // Refresh balance when returning from transaction list
+                            _refreshBalance();
+                          },
+                        ),
+                        _buildActionCard(
+                          icon: Icons.account_balance_wallet,
+                          title: 'Add Funds',
+                          color: Colors.purple,
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Wallet top-up coming soon!'),
+                              ),
+                            );
+                          },
+                        ),
+                        _buildActionCard(
+                          icon: Icons.verified_user,
+                          title: 'KYC Status',
+                          color: user.kycStatus == 'approved'
                               ? AppTheme.secondaryColor
-                              : AppTheme.errorColor,
+                              : AppTheme.warningColor,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const KYCSubmissionScreen(),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -230,210 +361,50 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildActionCards(BuildContext context, String userType, String kycStatus) {
-    List<Widget> cards = [];
-
-    // New Purchase/Sale - Only for buyers and sellers
-    if (userType == 'buyer') {
-      cards.add(
-        _buildActionCard(
-          icon: Icons.add_shopping_cart,
-          title: 'New Purchase',
-          color: AppTheme.primaryColor,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const CreateTransactionScreen(),
-              ),
-            );
-          },
-        ),
-      );
-    } else if (userType == 'seller') {
-      cards.add(
-        _buildActionCard(
-          icon: Icons.point_of_sale,
-          title: 'New Sale',
-          color: AppTheme.primaryColor,
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Seller interface coming soon!'),
-              ),
-            );
-          },
-        ),
-      );
-    } else if (userType == 'rider') {
-      cards.add(
-        _buildActionCard(
-          icon: Icons.local_shipping,
-          title: 'Available Orders',
-          color: AppTheme.primaryColor,
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Rider interface coming soon!'),
-              ),
-            );
-          },
-        ),
-      );
-    }
-
-    // Transactions - For all users
-    cards.add(
-      _buildActionCard(
-        icon: Icons.history,
-        title: 'Transactions',
-        color: AppTheme.secondaryColor,
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const TransactionListScreen(),
-            ),
-          );
-        },
-      ),
-    );
-
-    // KYC - For all users
-    cards.add(
-      _buildActionCard(
-        icon: Icons.verified_user,
-        title: kycStatus == 'approved' ? 'KYC Verified' : 'Complete KYC',
-        color: kycStatus == 'approved' 
-            ? AppTheme.secondaryColor 
-            : AppTheme.warningColor,
-        onTap: () {
-          if (kycStatus != 'approved') {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const KYCSubmissionScreen(),
-              ),
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Your KYC is already verified!'),
-                backgroundColor: AppTheme.secondaryColor,
-              ),
-            );
-          }
-        },
-      ),
-    );
-
-    // My Profile - For all users
-    cards.add(
-      _buildActionCard(
-        icon: Icons.person,
-        title: 'My Profile',
-        color: const Color(0xFF8B5CF6),
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Profile screen coming soon!'),
-            ),
-          );
-        },
-      ),
-    );
-
-    return cards;
-  }
-
   Widget _buildActionCard({
     required IconData icon,
     required String title,
     required Color color,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.3)),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 40, color: color),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: color,
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  size: 32,
+                  color: color,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildInfoCard({
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ...children,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value, {Color? valueColor}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppTheme.textSecondary,
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: valueColor ?? AppTheme.textPrimary,
-            ),
-          ),
-        ],
       ),
     );
   }
