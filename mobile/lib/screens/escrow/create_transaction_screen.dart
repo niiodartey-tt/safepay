@@ -74,6 +74,13 @@ class _CreateTransactionScreenState extends State<CreateTransactionScreen> {
     setState(() => _isLoading = false);
 
     if (result['success']) {
+      // Update wallet balance optimistically
+      final newBalance = user.walletBalance - _totalAmount;
+      authProvider.updateWalletBalance(newBalance);
+      
+      // Refresh user data from server
+      await authProvider.refreshUserData();
+      
       Navigator.pop(context, true);
       _showSuccess('Transaction created successfully!');
     } else {

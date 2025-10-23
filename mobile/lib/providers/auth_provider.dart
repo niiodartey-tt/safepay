@@ -22,8 +22,20 @@ class AuthProvider with ChangeNotifier {
     try {
       final isLoggedIn = await StorageService.isLoggedIn();
       if (isLoggedIn) {
-        _user = await AuthService.getSavedUser();
-        _isAuthenticated = _user != null;
+        // Try to get fresh user data from API
+        final freshUser = await AuthService.getProfile();
+        if (freshUser != null) {
+          _user = freshUser;
+          _isAuthenticated = true;
+          // Update stored user data
+          await StorageService.saveUserData(
+            '${_user!.toJson()}'.replaceAll('Instance of \'', '').replaceAll('\'', ''),
+          );
+        } else {
+          // Fallback to stored data
+          _user = await AuthService.getSavedUser();
+          _isAuthenticated = _user != null;
+        }
       }
     } catch (e) {
       _errorMessage = 'Failed to check auth status';
@@ -31,6 +43,23 @@ class AuthProvider with ChangeNotifier {
 
     _isLoading = false;
     notifyListeners();
+  }
+
+  // Refresh user data from server
+  Future<void> refreshUserData() async {
+    try {
+      final freshUser = await AuthService.getProfile();
+      if (freshUser != null) {
+        _user = freshUser;
+        // Update stored user data
+        await StorageService.saveUserData(
+          '${_user!.toJson()}'.replaceAll('Instance of \'', '').replaceAll('\'', ''),
+        );
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Failed to refresh user data: $e');
+    }
   }
 
   // Send OTP
@@ -122,5 +151,28 @@ class AuthProvider with ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  // Update wallet balance locally (optimistic update)
+  void updateWalletBalance(double newBalance) {
+    if (_user != null) {
+      _user = UserModel(
+        id: _user!.id,
+        phoneNumber: _user!.phoneNumber,
+        email: _user!.email,
+        userType: _user!.userType,
+        fullName: _user!.fullName,
+        walletBalance: newBalance,
+        isVerified: _user!.isVerified,
+        kycStatus: _user!.kycStatus,
+        profilePhotoUrl: _user!.profilePhotoUrl,
+        createdAt: _user!.createdAt,
+        lastLoginAt: _user!.lastLoginAt,
+      );
+      notifyListeners();
+      
+      // Refresh from server in background
+      refreshUserData();
+    }
   }
 }
