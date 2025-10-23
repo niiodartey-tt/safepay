@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
@@ -6,9 +7,46 @@ import '../auth/welcome_screen.dart';
 import '../kyc/kyc_submission_screen.dart';
 import '../escrow/create_transaction_screen.dart';
 import '../escrow/transaction_list_screen.dart';
+import 'rider_dashboard_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  Timer? _refreshTimer;
+
+  // Auto-refresh every 30 seconds for wallet balance and user data
+  static const Duration _autoRefreshInterval = Duration(seconds: 30);
+
+  @override
+  void initState() {
+    super.initState();
+    _startAutoRefresh();
+  }
+
+  @override
+  void dispose() {
+    _stopAutoRefresh();
+    super.dispose();
+  }
+
+  void _startAutoRefresh() {
+    _refreshTimer = Timer.periodic(_autoRefreshInterval, (timer) {
+      if (mounted) {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        authProvider.checkAuthStatus();
+      }
+    });
+  }
+
+  void _stopAutoRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -269,12 +307,13 @@ class HomeScreen extends StatelessWidget {
       cards.add(
         _buildActionCard(
           icon: Icons.local_shipping,
-          title: 'Available Orders',
+          title: 'My Deliveries',
           color: AppTheme.primaryColor,
           onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Rider interface coming soon!'),
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const RiderDashboardScreen(),
               ),
             );
           },
