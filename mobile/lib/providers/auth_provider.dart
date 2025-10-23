@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
@@ -29,7 +30,7 @@ class AuthProvider with ChangeNotifier {
           _isAuthenticated = true;
           // Update stored user data
           await StorageService.saveUserData(
-            '${_user!.toJson()}'.replaceAll('Instance of \'', '').replaceAll('\'', ''),
+            json.encode(_user!.toJson()),
           );
         } else {
           // Fallback to stored data
@@ -53,7 +54,7 @@ class AuthProvider with ChangeNotifier {
         _user = freshUser;
         // Update stored user data
         await StorageService.saveUserData(
-          '${_user!.toJson()}'.replaceAll('Instance of \'', '').replaceAll('\'', ''),
+          json.encode(_user!.toJson()),
         );
         notifyListeners();
       }

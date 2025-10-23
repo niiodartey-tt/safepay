@@ -40,6 +40,9 @@ dependencies:
   # Pin Code Input
   pinput: ^3.0.1
 
+  # Image Picker
+  image_picker: ^1.0.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

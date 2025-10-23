@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../config/theme.dart';
 import '../../services/kyc_service.dart';
 
@@ -13,10 +15,13 @@ class _KYCSubmissionScreenState extends State<KYCSubmissionScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _idNumberController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
-  
+  final ImagePicker _picker = ImagePicker();
+
   bool _isLoading = false;
   String? _idCardUrl;
   String? _profilePhotoUrl;
+  File? _idCardFile;
+  File? _profilePhotoFile;
 
   @override
   void dispose() {
@@ -54,20 +59,73 @@ class _KYCSubmissionScreenState extends State<KYCSubmissionScreen> {
     }
   }
 
-  void _uploadIDCard() {
-    // TODO: Implement image picker
-    setState(() {
-      _idCardUrl = 'https://example.com/id-card.jpg';
-    });
-    _showSuccess('ID card uploaded (demo)');
+  Future<void> _uploadIDCard() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _idCardFile = File(image.path);
+          _idCardUrl = image.path;
+        });
+        _showSuccess('ID card selected');
+      }
+    } catch (e) {
+      _showError('Failed to pick image: $e');
+    }
   }
 
-  void _uploadProfilePhoto() {
-    // TODO: Implement image picker
-    setState(() {
-      _profilePhotoUrl = 'https://example.com/profile.jpg';
-    });
-    _showSuccess('Profile photo uploaded (demo)');
+  Future<void> _uploadProfilePhoto() async {
+    try {
+      // Show dialog to choose between camera and gallery
+      final ImageSource? source = await showDialog<ImageSource>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Select Photo Source'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.camera_alt),
+                  title: const Text('Camera'),
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library),
+                  title: const Text('Gallery'),
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      if (source != null) {
+        final XFile? image = await _picker.pickImage(
+          source: source,
+          maxWidth: 1080,
+          maxHeight: 1080,
+          imageQuality: 85,
+        );
+
+        if (image != null) {
+          setState(() {
+            _profilePhotoFile = File(image.path);
+            _profilePhotoUrl = image.path;
+          });
+          _showSuccess('Profile photo selected');
+        }
+      }
+    } catch (e) {
+      _showError('Failed to pick image: $e');
+    }
   }
 
   void _showError(String message) {
@@ -112,17 +170,18 @@ class _KYCSubmissionScreenState extends State<KYCSubmissionScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // ID Card Upload
               _buildUploadCard(
                 title: 'Upload ID Card',
                 description: 'Ghana Card, Passport, or Driver\'s License',
                 icon: Icons.badge_outlined,
                 isUploaded: _idCardUrl != null,
+                imageFile: _idCardFile,
                 onTap: _uploadIDCard,
               ),
               const SizedBox(height: 16),
-              
+
               // ID Number
               TextFormField(
                 controller: _idNumberController,
@@ -139,17 +198,18 @@ class _KYCSubmissionScreenState extends State<KYCSubmissionScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              
+
               // Profile Photo Upload
               _buildUploadCard(
                 title: 'Upload Profile Photo',
                 description: 'Clear photo of your face',
                 icon: Icons.person_outline,
                 isUploaded: _profilePhotoUrl != null,
+                imageFile: _profilePhotoFile,
                 onTap: _uploadProfilePhoto,
               ),
               const SizedBox(height: 16),
-              
+
               // Address
               TextFormField(
                 controller: _addressController,
@@ -167,7 +227,7 @@ class _KYCSubmissionScreenState extends State<KYCSubmissionScreen> {
                 },
               ),
               const SizedBox(height: 24),
-              
+
               // Info Box
               Container(
                 padding: const EdgeInsets.all(16),
@@ -192,7 +252,7 @@ class _KYCSubmissionScreenState extends State<KYCSubmissionScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              
+
               // Submit Button
               SizedBox(
                 width: double.infinity,
@@ -222,6 +282,7 @@ class _KYCSubmissionScreenState extends State<KYCSubmissionScreen> {
     required String description,
     required IconData icon,
     required bool isUploaded,
+    File? imageFile,
     required VoidCallback onTap,
   }) {
     return InkWell(
@@ -239,52 +300,68 @@ class _KYCSubmissionScreenState extends State<KYCSubmissionScreen> {
           ),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Row(
+        child: Column(
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: isUploaded
-                    ? AppTheme.secondaryColor
-                    : AppTheme.borderColor,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                isUploaded ? Icons.check : icon,
-                color: isUploaded ? Colors.white : AppTheme.textSecondary,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: isUploaded
-                          ? AppTheme.secondaryColor
-                          : AppTheme.textPrimary,
-                    ),
+            Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: isUploaded
+                        ? AppTheme.secondaryColor
+                        : AppTheme.borderColor,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: AppTheme.textSecondary,
-                    ),
+                  child: Icon(
+                    isUploaded ? Icons.check : icon,
+                    color: isUploaded ? Colors.white : AppTheme.textSecondary,
                   ),
-                ],
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: isUploaded
+                              ? AppTheme.secondaryColor
+                              : AppTheme.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  isUploaded ? Icons.edit : Icons.upload_file,
+                  color: isUploaded ? AppTheme.secondaryColor : AppTheme.textSecondary,
+                ),
+              ],
+            ),
+            if (imageFile != null) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(
+                  imageFile,
+                  height: 150,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
               ),
-            ),
-            Icon(
-              isUploaded ? Icons.edit : Icons.upload_file,
-              color: isUploaded ? AppTheme.secondaryColor : AppTheme.textSecondary,
-            ),
+            ],
           ],
         ),
       ),

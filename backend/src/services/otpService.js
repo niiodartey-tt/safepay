@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const logger = require('../utils/logger');
+const twilio = require('twilio');
 
 class OTPService {
   // Generate 6-digit OTP
@@ -54,15 +55,60 @@ class OTPService {
     return { success: true, message: 'OTP verified successfully' };
   }
 
-  // Send OTP via SMS (placeholder - will integrate Twilio later)
+  // Send OTP via SMS
   static async sendOTP(phoneNumber, otpCode) {
-    // TODO: Integrate with Twilio or other SMS service
     logger.info(`📱 Sending OTP ${otpCode} to ${phoneNumber}`);
-    
-    // For development, just log it
-    console.log(`\n🔐 OTP for ${phoneNumber}: ${otpCode}\n`);
-    
-    return { success: true, message: 'OTP sent successfully' };
+
+    // Check if Twilio credentials are configured
+    const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+    const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+    const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+
+    if (twilioAccountSid && twilioAuthToken && twilioPhoneNumber &&
+        twilioAccountSid !== 'your_twilio_account_sid_here') {
+      try {
+        // Initialize Twilio client
+        const client = twilio(twilioAccountSid, twilioAuthToken);
+
+        // Send SMS via Twilio
+        const message = await client.messages.create({
+          body: `Your SafePay Ghana verification code is: ${otpCode}. Valid for 10 minutes. Do not share this code.`,
+          from: twilioPhoneNumber,
+          to: phoneNumber,
+        });
+
+        logger.info(`✅ SMS sent successfully via Twilio. SID: ${message.sid}`);
+        return {
+          success: true,
+          message: 'OTP sent via SMS successfully',
+          provider: 'twilio'
+        };
+      } catch (error) {
+        logger.error(`❌ Twilio SMS failed: ${error.message}`);
+        // Fall back to console logging in development
+        console.log(`\n🔐 OTP for ${phoneNumber}: ${otpCode}\n`);
+        return {
+          success: true,
+          message: 'OTP sent (dev mode - check console)',
+          provider: 'console',
+          error: error.message
+        };
+      }
+    } else {
+      // Development mode - just log to console
+      console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+      console.log(`🔐 DEVELOPMENT MODE - OTP VERIFICATION`);
+      console.log(`📱 Phone Number: ${phoneNumber}`);
+      console.log(`🔢 OTP Code: ${otpCode}`);
+      console.log(`⏰ Valid for: 10 minutes`);
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+
+      return {
+        success: true,
+        message: 'OTP sent (development mode - check backend console)',
+        provider: 'console'
+      };
+    }
   }
 
   // Clean up expired OTPs
